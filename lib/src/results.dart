@@ -14,9 +14,10 @@ class ReferenceWithTimezone {
   ReferenceWithTimezone([dynamic input])
       : assert(input == null || input is ParsingReference || input is DateTime),
         instant = (input is DateTime
-            ? input
-            : ((input is ParsingReference ? input.instant : null) ??
-                DateTime.now())).toLocal(),
+                ? input
+                : ((input is ParsingReference ? input.instant : null) ??
+                    DateTime.now()))
+            .toLocal(),
         timezoneOffset = input is! ParsingReference
             ? null
             : toTimezoneOffset(input.timezone, input.instant);
@@ -196,8 +197,9 @@ class ParsingComponents implements ParsedComponents {
     final date = _dateWithoutTimezoneAdjustment();
     final timezoneAdjustment = reference.getSystemTimezoneAdjustmentMinute(
         date, get(Component.timezoneOffset));
-    return DateTime.fromMillisecondsSinceEpoch(
-        date.millisecondsSinceEpoch, isUtc: true).add(Duration(minutes: timezoneAdjustment));
+    return DateTime.fromMillisecondsSinceEpoch(date.millisecondsSinceEpoch,
+            isUtc: true)
+        .add(Duration(minutes: timezoneAdjustment));
   }
 
   ParsingComponents addTag(String tag) {
@@ -236,7 +238,10 @@ class ParsingComponents implements ParsedComponents {
     var date = day_js.Day.fromDateTime(reference.instant);
     for (final key in fragments.keys) {
       /// TODO: WARNING: forceful double to int; needs research
-      date = date.add(fragments[key]!.toInt(), key) ?? date;
+      final isKeyWeek = (key == "week");
+      final actualKey = isKeyWeek ? "d" : key;
+      final actualValue = fragments[key]!.toInt() * ((isKeyWeek) ? 7 : 1);
+      date = date.add(actualValue, actualKey) ?? date;
     }
 
     final components = ParsingComponents(reference);
@@ -262,6 +267,9 @@ class ParsingComponents implements ParsedComponents {
         components.assign(Component.year, date.year());
       } else {
         if (fragments["week"] != null) {
+          components.assign(Component.day, date.date());
+          components.assign(Component.month, date.month());
+          components.assign(Component.year, date.year());
           components.imply(Component.weekday, date.weekday());
         }
 
