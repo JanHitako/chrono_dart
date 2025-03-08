@@ -1,57 +1,13 @@
 // import 'package:day/plugins/quarter_of_year.dart';
 import 'dart:convert';
+
 import 'package:day/day.dart' as day_js;
+
+import './timezone.dart' show toTimezoneOffset;
 import './types.dart'
     show Component, ParsedComponents, ParsedResult, ParsingReference;
 import './utils/day.dart'
     show assignSimilarDate, assignSimilarTime, implySimilarTime;
-import './timezone.dart' show toTimezoneOffset;
-
-class ReferenceWithTimezone {
-  final DateTime instant;
-  final int? timezoneOffset;
-
-  ReferenceWithTimezone([dynamic input])
-      : assert(input == null || input is ParsingReference || input is DateTime),
-        instant = (input is DateTime
-                ? input
-                : ((input is ParsingReference ? input.instant : null) ??
-                    DateTime.now()))
-            .toLocal(),
-        timezoneOffset = input is! ParsingReference
-            ? null
-            : toTimezoneOffset(input.timezone, input.instant);
-
-  /// Returns a Dart date (system timezone) with the { year, month, day, hour, minute, second } equal to the reference.
-  /// The output's instant is NOT the reference's instant when the reference's and system's timezone are different.
-  getDateWithAdjustedTimezone() {
-    return DateTime.fromMillisecondsSinceEpoch(instant.millisecondsSinceEpoch +
-        getSystemTimezoneAdjustmentMinute(instant) * 60000);
-  }
-
-  /// Returns the number minutes difference between the Dart date's timezone and the reference timezone.
-  int getSystemTimezoneAdjustmentMinute(DateTime? date,
-      [int? overrideTimezoneOffset]) {
-    if (date == null || date.millisecondsSinceEpoch < 0) {
-      // TODO: WARNING: Possibly remove due to JS <-> Dart differences?
-      // Javascript date timezone calculation got effect when the time epoch < 0
-      // e.g. new DateTime('Tue Feb 02 1300 00:00:00 GMT+0900 (JST)') => Tue Feb 02 1300 00:18:59 GMT+0918 (JST)
-      date = DateTime.now();
-    }
-
-    /// TODO: WARNING: removed negative sign - seems to work as intended, but needs testing.
-    final currentTimezoneOffset = date.timeZoneOffset.inMinutes;
-    final targetTimezoneOffset =
-        overrideTimezoneOffset ?? timezoneOffset ?? currentTimezoneOffset;
-    return currentTimezoneOffset - targetTimezoneOffset;
-  }
-
-  @override
-  String toString() => jsonEncode({
-        'instant': instant.toIso8601String(),
-        'timezoneOffset': timezoneOffset,
-      });
-}
 
 class ParsingComponents implements ParsedComponents {
   Map<Component, int> knownValues = {};
@@ -81,33 +37,15 @@ class ParsingComponents implements ParsedComponents {
     imply(Component.millisecond, 0);
   }
 
-  @override
-  int? get(Component component) {
-    if (knownValues.containsKey(component)) {
-      return knownValues[component];
-    }
-
-    if (impliedValues.containsKey(component)) {
-      return impliedValues[component];
-    }
-
-    return null;
+  ParsingComponents addTag(String tag) {
+    _tags.add(tag);
+    return this;
   }
 
-  @override
-  bool isCertain(Component component) {
-    return knownValues.containsKey(component);
-  }
-
-  List<Component> getCertainComponents() {
-    return knownValues.keys.toList();
-  }
-
-  ParsingComponents imply(Component component, int value) {
-    if (knownValues.containsKey(component)) {
-      return this;
+  ParsingComponents addTags(Iterable<String> tags) {
+    for (final tag in tags) {
+      _tags.add(tag);
     }
-    impliedValues[component] = value;
     return this;
   }
 
@@ -115,11 +53,6 @@ class ParsingComponents implements ParsedComponents {
     knownValues[component] = value;
     impliedValues.remove(component);
     return this;
-  }
-
-  void delete(Component component) {
-    knownValues.remove(component);
-    impliedValues.remove(component);
   }
 
   ParsingComponents clone() {
@@ -138,6 +71,59 @@ class ParsingComponents implements ParsedComponents {
     return component;
   }
 
+  @override
+  DateTime date() {
+    final date = _dateWithoutTimezoneAdjustment();
+    final timezoneAdjustment = reference.getSystemTimezoneAdjustmentMinute(
+        date, get(Component.timezoneOffset));
+    return DateTime.fromMillisecondsSinceEpoch(date.millisecondsSinceEpoch,
+            isUtc: true)
+        .add(Duration(minutes: timezoneAdjustment));
+  }
+
+  day_js.Day dayjs() {
+    return day_js.Day.fromDateTime(date());
+  }
+
+  void delete(Component component) {
+    knownValues.remove(component);
+    impliedValues.remove(component);
+  }
+
+  @override
+  int? get(Component component) {
+    if (knownValues.containsKey(component)) {
+      return knownValues[component];
+    }
+
+    if (impliedValues.containsKey(component)) {
+      return impliedValues[component];
+    }
+
+    return null;
+  }
+
+  List<Component> getCertainComponents() {
+    return knownValues.keys.toList();
+  }
+
+  ParsingComponents imply(Component component, int value) {
+    if (knownValues.containsKey(component)) {
+      return this;
+    }
+    impliedValues[component] = value;
+    return this;
+  }
+
+  @override
+  bool isCertain(Component component) {
+    return knownValues.containsKey(component);
+  }
+
+  bool isDateWithUnknownYear() {
+    return isCertain(Component.month) && !isCertain(Component.year);
+  }
+
   bool isOnlyDate() {
     return !isCertain(Component.hour) &&
         !isCertain(Component.minute) &&
@@ -154,10 +140,6 @@ class ParsingComponents implements ParsedComponents {
     return isCertain(Component.weekday) &&
         !isCertain(Component.day) &&
         !isCertain(Component.month);
-  }
-
-  bool isDateWithUnknownYear() {
-    return isCertain(Component.month) && !isCertain(Component.year);
   }
 
   bool isValidDate() {
@@ -180,43 +162,17 @@ class ParsingComponents implements ParsedComponents {
   }
 
   @override
+  Set<String> tags() {
+    return _tags.toSet();
+  }
+
+  @override
   toString() {
     return '''[ParsingComponents {
             tags: ${jsonEncode(_tags.toList())}, 
             knownValues: ${jsonEncode(knownValues.map((key, val) => MapEntry(key.name, val)))}, 
             impliedValues: ${jsonEncode(impliedValues.map((key, val) => MapEntry(key.name, val)))}}, 
             reference: ${reference.toString()}]''';
-  }
-
-  day_js.Day dayjs() {
-    return day_js.Day.fromDateTime(date());
-  }
-
-  @override
-  DateTime date() {
-    final date = _dateWithoutTimezoneAdjustment();
-    final timezoneAdjustment = reference.getSystemTimezoneAdjustmentMinute(
-        date, get(Component.timezoneOffset));
-    return DateTime.fromMillisecondsSinceEpoch(date.millisecondsSinceEpoch,
-            isUtc: true)
-        .add(Duration(minutes: timezoneAdjustment));
-  }
-
-  ParsingComponents addTag(String tag) {
-    _tags.add(tag);
-    return this;
-  }
-
-  ParsingComponents addTags(Iterable<String> tags) {
-    for (final tag in tags) {
-      _tags.add(tag);
-    }
-    return this;
-  }
-
-  @override
-  Set<String> tags() {
-    return _tags.toSet();
   }
 
   DateTime _dateWithoutTimezoneAdjustment() {
@@ -241,7 +197,7 @@ class ParsingComponents implements ParsedComponents {
       final isKeyWeek = (key == "week");
       final actualKey = isKeyWeek ? "d" : key;
       final actualValue = fragments[key]!.toInt() * ((isKeyWeek) ? 7 : 1);
-      date = date.add(actualValue, actualKey) ?? date;
+      date = date.addRound(actualValue, actualKey) ?? date;
     }
 
     final components = ParsingComponents(reference);
@@ -344,4 +300,50 @@ class ParsingResult implements ParsedResult {
     final tags = this.tags().toList();
     return '''ParsingResult {index: $index, text: '$text', tags: ${jsonEncode(tags)}, date: ${date()}}''';
   }
+}
+
+class ReferenceWithTimezone {
+  final DateTime instant;
+  final int? timezoneOffset;
+
+  ReferenceWithTimezone([dynamic input])
+      : assert(input == null || input is ParsingReference || input is DateTime),
+        instant = (input is DateTime
+                ? input
+                : ((input is ParsingReference ? input.instant : null) ??
+                    DateTime.now()))
+            .toLocal(),
+        timezoneOffset = input is! ParsingReference
+            ? null
+            : toTimezoneOffset(input.timezone, input.instant);
+
+  /// Returns a Dart date (system timezone) with the { year, month, day, hour, minute, second } equal to the reference.
+  /// The output's instant is NOT the reference's instant when the reference's and system's timezone are different.
+  getDateWithAdjustedTimezone() {
+    return DateTime.fromMillisecondsSinceEpoch(instant.millisecondsSinceEpoch +
+        getSystemTimezoneAdjustmentMinute(instant) * 60000);
+  }
+
+  /// Returns the number minutes difference between the Dart date's timezone and the reference timezone.
+  int getSystemTimezoneAdjustmentMinute(DateTime? date,
+      [int? overrideTimezoneOffset]) {
+    if (date == null || date.millisecondsSinceEpoch < 0) {
+      // TODO: WARNING: Possibly remove due to JS <-> Dart differences?
+      // Javascript date timezone calculation got effect when the time epoch < 0
+      // e.g. new DateTime('Tue Feb 02 1300 00:00:00 GMT+0900 (JST)') => Tue Feb 02 1300 00:18:59 GMT+0918 (JST)
+      date = DateTime.now();
+    }
+
+    /// TODO: WARNING: removed negative sign - seems to work as intended, but needs testing.
+    final currentTimezoneOffset = date.timeZoneOffset.inMinutes;
+    final targetTimezoneOffset =
+        overrideTimezoneOffset ?? timezoneOffset ?? currentTimezoneOffset;
+    return currentTimezoneOffset - targetTimezoneOffset;
+  }
+
+  @override
+  String toString() => jsonEncode({
+        'instant': instant.toIso8601String(),
+        'timezoneOffset': timezoneOffset,
+      });
 }
