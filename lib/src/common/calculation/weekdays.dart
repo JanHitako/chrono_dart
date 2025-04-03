@@ -1,5 +1,5 @@
-import '../../types.dart' show Component, Weekday;
 import '../../results.dart' show ParsingComponents, ReferenceWithTimezone;
+import '../../types.dart' show Component, Weekday;
 import '../../utils/timeunits.dart' show addImpliedTimeUnits;
 
 /// Returns the parsing components at the weekday (considering the modifier). The time and timezone is assume to be
@@ -20,6 +20,24 @@ ParsingComponents createParsingComponentsAtWeekday(
   return components;
 }
 
+int getBackwardDaysToWeekday(DateTime refDate, Weekday weekday) {
+  final refWeekday = Weekday.weekById(refDate.weekday);
+  var backwardCount = weekday.id - refWeekday.id;
+  if (backwardCount >= 0) {
+    backwardCount -= 7;
+  }
+  return backwardCount;
+}
+
+int getDaysForwardToWeekday(DateTime refDate, Weekday weekday) {
+  final refWeekday = Weekday.weekById(refDate.weekday);
+  var forwardCount = weekday.id - refWeekday.id;
+  if (forwardCount < 0) {
+    forwardCount += 7;
+  }
+  return forwardCount;
+}
+
 /// Returns number of days from refDate to the weekday. The refDate date and timezone information is used.
 /// @param refDate
 /// @param weekday
@@ -35,7 +53,7 @@ int getDaysToWeekday(DateTime refDate, Weekday weekday, [String? modifier]) {
       return getDaysForwardToWeekday(refDate, weekday);
     case "last":
       return getBackwardDaysToWeekday(refDate, weekday);
-    case "next":
+    case "next" || null:
       // From Sunday, the next Sunday is 7 days later.
       // Otherwise, next Mon is 1 days later, next Tues is 2 days later, and so on..., (return enum value)
       if (refWeekday == Weekday.SUNDAY) {
@@ -66,22 +84,4 @@ int getDaysToWeekdayClosest(DateTime refDate, Weekday weekday) {
   final forward = getDaysForwardToWeekday(refDate, weekday);
 
   return forward < -backward ? forward : backward;
-}
-
-int getDaysForwardToWeekday(DateTime refDate, Weekday weekday) {
-  final refWeekday = Weekday.weekById(refDate.weekday);
-  var forwardCount = weekday.id - refWeekday.id;
-  if (forwardCount < 0) {
-    forwardCount += 7;
-  }
-  return forwardCount;
-}
-
-int getBackwardDaysToWeekday(DateTime refDate, Weekday weekday) {
-  final refWeekday = Weekday.weekById(refDate.weekday);
-  var backwardCount = weekday.id - refWeekday.id;
-  if (backwardCount >= 0) {
-    backwardCount -= 7;
-  }
-  return backwardCount;
 }
