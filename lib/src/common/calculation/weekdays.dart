@@ -53,7 +53,7 @@ int getDaysToWeekday(DateTime refDate, Weekday weekday, [String? modifier]) {
       return getDaysForwardToWeekday(refDate, weekday);
     case "last":
       return getBackwardDaysToWeekday(refDate, weekday);
-    case "next" || null:
+    case "next":
       // From Sunday, the next Sunday is 7 days later.
       // Otherwise, next Mon is 1 days later, next Tues is 2 days later, and so on..., (return enum value)
       if (refWeekday == Weekday.SUNDAY) {
@@ -80,8 +80,8 @@ int getDaysToWeekday(DateTime refDate, Weekday weekday, [String? modifier]) {
 }
 
 int getDaysToWeekdayClosest(DateTime refDate, Weekday weekday) {
-  final backward = getBackwardDaysToWeekday(refDate, weekday);
+  //final backward = getBackwardDaysToWeekday(refDate, weekday);
   final forward = getDaysForwardToWeekday(refDate, weekday);
 
-  return forward < -backward ? forward : backward;
+  return forward; //< -backward ? forward : backward;
 }
