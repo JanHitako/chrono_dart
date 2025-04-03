@@ -1,0 +1,1316 @@
+configuration.dart
+import '../../chrono.dart' show Configuration;
+
+import './parsers/ENTimeUnitWithinFormatParser.dart';
+import './parsers/ENMonthNameLittleEndianParser.dart';
+import './parsers/ENMonthNameMiddleEndianParser.dart';
+import './parsers/ENMonthNameParser.dart';
+import './parsers/ENCasualYearMonthDayParser.dart';
+import './parsers/ENSlashMonthFormatParser.dart';
+import './parsers/ENTimeExpressionParser.dart';
+import './parsers/ENTimeUnitAgoFormatParser.dart';
+import './parsers/ENTimeUnitLaterFormatParser.dart';
+import './refiners/ENMergeDateRangeRefiner.dart';
+import './refiners/ENMergeDateTimeRefiner.dart';
+
+import '../../configurations.dart' show includeCommonConfiguration;
+import './parsers/ENCasualDateParser.dart';
+import './parsers/ENCasualTimeParser.dart';
+import './parsers/ENWeekdayParser.dart';
+import './parsers/ENRelativeDateFormatParser.dart';
+
+import '../../common/parsers/SlashDateFormatParser.dart';
+import './parsers/ENTimeUnitCasualRelativeFormatParser.dart';
+import './refiners/ENMergeRelativeDateRefiner.dart';
+
+class ENDefaultConfiguration {
+  const ENDefaultConfiguration();
+
+    /// Create a default *casual* {@Link Configuration} for English chrono.
+    /// It calls {@Link createConfiguration} and includes additional parsers.
+    Configuration createCasualConfiguration([ bool littleEndian = false ]) {
+        final option = createConfiguration(false, littleEndian);
+        option.parsers.insert(0, ENCasualDateParser());
+        option.parsers.insert(0, ENCasualTimeParser());
+        option.parsers.insert(0, ENMonthNameParser());
+        option.parsers.insert(0, ENRelativeDateFormatParser());
+        option.parsers.insert(0, ENTimeUnitCasualRelativeFormatParser());
+        return option;
+    }
+
+    /// Create a default {@Link Configuration} for English chrono
+    ///
+    /// @param strictMode If the timeunit mentioning should be strict, not casual
+    /// @param littleEndian If format should be date-first/littleEndian (e.g. en_UK), not month-first/middleEndian (e.g. en_US)
+    Configuration createConfiguration([ bool strictMode = true, bool littleEndian = false ]) {
+        final options = includeCommonConfiguration(
+            Configuration(
+                parsers: [
+                    SlashDateFormatParser(littleEndian),
+                    ENTimeUnitWithinFormatParser(strictMode),
+                    ENMonthNameLittleEndianParser(),
+                    ENMonthNameMiddleEndianParser(),
+                    ENWeekdayParser(),
+                    ENCasualYearMonthDayParser(),
+                    ENSlashMonthFormatParser(),
+                    ENTimeExpressionParser(strictMode),
+                    ENTimeUnitAgoFormatParser(strictMode),
+                    ENTimeUnitLaterFormatParser(strictMode),
+                ],
+                refiners: [ENMergeRelativeDateRefiner(), ENMergeDateTimeRefiner()],
+            ),
+            strictMode
+        );
+        // Re-apply the date time refiner again after the timezone refinement and exclusion in common refiners.
+        options.refiners.add(ENMergeDateTimeRefiner());
+        // Keep the date range refiner at the end (after all other refinements).
+        options.refiners.add(ENMergeDateRangeRefiner());
+        return options;
+    }
+}
+
+
+constants.dart
+import '../../utils/pattern.dart' show matchAnyPattern, repeatedTimeunitPattern;
+import '../../calculation/years.dart' show findMostLikelyADYear;
+import '../../utils/timeunits.dart' show TimeUnits;
+
+const Map<String, int> WEEKDAY_DICTIONARY = {
+  'sunday': 0,
+  'sun': 0,
+  'sun.': 0,
+  'monday': 1,
+  'mon': 1,
+  'mon.': 1,
+  'tuesday': 2,
+  'tue': 2,
+  'tue.': 2,
+  'wednesday': 3,
+  'wed': 3,
+  'wed.': 3,
+  'thursday': 4,
+  'thurs': 4,
+  'thurs.': 4,
+  'thur': 4,
+  'thur.': 4,
+  'thu': 4,
+  'thu.': 4,
+  'friday': 5,
+  'fri': 5,
+  'fri.': 5,
+  'saturday': 6,
+  'sat': 6,
+  'sat.': 6,
+};
+
+const Map<String, int> FULL_MONTH_NAME_DICTIONARY = {
+  'january': 1,
+  'february': 2,
+  'march': 3,
+  'april': 4,
+  'may': 5,
+  'june': 6,
+  'july': 7,
+  'august': 8,
+  'september': 9,
+  'october': 10,
+  'november': 11,
+  'december': 12,
+};
+
+const Map<String, int> MONTH_DICTIONARY = {
+  ...FULL_MONTH_NAME_DICTIONARY,
+  'jan': 1,
+  'jan.': 1,
+  'feb': 2,
+  'feb.': 2,
+  'mar': 3,
+  'mar.': 3,
+  'apr': 4,
+  'apr.': 4,
+  'jun': 6,
+  'jun.': 6,
+  'jul': 7,
+  'jul.': 7,
+  'aug': 8,
+  'aug.': 8,
+  'sep': 9,
+  'sep.': 9,
+  'sept': 9,
+  'sept.': 9,
+  'oct': 10,
+  'oct.': 10,
+  'nov': 11,
+  'nov.': 11,
+  'dec': 12,
+  'dec.': 12,
+};
+
+const Map<String, int> INTEGER_WORD_DICTIONARY = {
+  'one': 1,
+  'two': 2,
+  'three': 3,
+  'four': 4,
+  'five': 5,
+  'six': 6,
+  'seven': 7,
+  'eight': 8,
+  'nine': 9,
+  'ten': 10,
+  'eleven': 11,
+  'twelve': 12,
+};
+
+const Map<String, int> ORDINAL_WORD_DICTIONARY = {
+  'first': 1,
+  'second': 2,
+  'third': 3,
+  'fourth': 4,
+  'fifth': 5,
+  'sixth': 6,
+  'seventh': 7,
+  'eighth': 8,
+  'ninth': 9,
+  'tenth': 10,
+  'eleventh': 11,
+  'twelfth': 12,
+  'thirteenth': 13,
+  'fourteenth': 14,
+  'fifteenth': 15,
+  'sixteenth': 16,
+  'seventeenth': 17,
+  'eighteenth': 18,
+  'nineteenth': 19,
+  'twentieth': 20,
+  'twenty first': 21,
+  'twenty-first': 21,
+  'twenty second': 22,
+  'twenty-second': 22,
+  'twenty third': 23,
+  'twenty-third': 23,
+  'twenty fourth': 24,
+  'twenty-fourth': 24,
+  'twenty fifth': 25,
+  'twenty-fifth': 25,
+  'twenty sixth': 26,
+  'twenty-sixth': 26,
+  'twenty seventh': 27,
+  'twenty-seventh': 27,
+  'twenty eighth': 28,
+  'twenty-eighth': 28,
+  'twenty ninth': 29,
+  'twenty-ninth': 29,
+  'thirtieth': 30,
+  'thirty first': 31,
+  'thirty-first': 31,
+};
+
+const Map<String, String> TIME_UNIT_DICTIONARY_NO_ABBR = {
+  'second': 'second',
+  'seconds': 'second',
+  'minute': 'minute',
+  'minutes': 'minute',
+  'hour': 'hour',
+  'hours': 'hour',
+  'day': 'd',
+  'days': 'd',
+  'week': 'week',
+  'weeks': 'week',
+  'month': 'month',
+  'months': 'month',
+  'quarter': 'quarter',
+  'quarters': 'quarter',
+  'year': 'year',
+  'years': 'year',
+};
+
+final Map<String, String> TIME_UNIT_DICTIONARY = {
+  's': "second",
+  'sec': "second",
+  'second': "second",
+  'seconds': "second",
+  'm': "minute",
+  'min': "minute",
+  'mins': "minute",
+  'minute': "minute",
+  'minutes': "minute",
+  'h': "hour",
+  'hr': "hour",
+  'hrs': "hour",
+  'hour': "hour",
+  'hours': "hour",
+  'd': "d",
+  'day': "d",
+  'days': "d",
+  'w': "w",
+  'week': "week",
+  'weeks': "week",
+  'mo': "month",
+  'mon': "month",
+  'mos': "month",
+  'month': "month",
+  'months': "month",
+  'qtr': "quarter",
+  'quarter': "quarter",
+  'quarters': "quarter",
+  'y': "year",
+  'yr': "year",
+  'year': "year",
+  'years': "year",
+  // Also, merge the entries from the full-name dictionary.
+  // We leave the duplicated entries for readability.
+  ...TIME_UNIT_DICTIONARY_NO_ABBR,
+};
+
+//-----------------------------
+
+final NUMBER_PATTERN =
+    "(?:${matchAnyPattern(INTEGER_WORD_DICTIONARY)}|[0-9]+|[0-9]+\\.[0-9]+|half(?:\\s{0,2}an?)?|an?\\b(?:\\s{0,2}few)?|few|several|the|a?\\s{0,2}couple\\s{0,2}(?:of)?)";
+
+double? parseNumberPattern(String match) {
+  final nmb = match.toLowerCase();
+  if (INTEGER_WORD_DICTIONARY[nmb] != null) {
+    return INTEGER_WORD_DICTIONARY[nmb]!.toDouble();
+  } else if (nmb == "a" || nmb == "an" || nmb == "the") {
+    return 1;
+  } else if (RegExp(r'few').hasMatch(nmb)) {
+    return 3;
+  } else if (RegExp(r'half').hasMatch(nmb)) {
+    return 0.5;
+  } else if (RegExp(r'couple').hasMatch(nmb)) {
+    return 2;
+  } else if (RegExp(r'several').hasMatch(nmb)) {
+    return 7;
+  }
+
+  return double.tryParse(nmb);
+}
+
+//-----------------------------
+
+final ORDINAL_NUMBER_PATTERN =
+    "(?:${matchAnyPattern(ORDINAL_WORD_DICTIONARY)}|[0-9]{1,2}(?:st|nd|rd|th)?)";
+int? parseOrdinalNumberPattern(String match) {
+  var nmb = match.toLowerCase();
+  if (ORDINAL_WORD_DICTIONARY[nmb] != null) {
+    return ORDINAL_WORD_DICTIONARY[nmb];
+  }
+
+  nmb = nmb.replaceFirst(RegExp(r'(?:st|nd|rd|th)$'), "");
+  return int.tryParse(nmb);
+}
+
+//-----------------------------
+
+const YEAR_PATTERN =
+    "(?:[1-9][0-9]{0,3}\\s{0,2}(?:BE|AD|BC|BCE|CE)|[1-2][0-9]{3}|[5-9][0-9])";
+int? parseYear(String match) {
+  if (RegExp(r'BE', caseSensitive: true).hasMatch(match)) {
+    // Buddhist Era
+    match = match.replaceFirst(RegExp(r'BE', caseSensitive: true), "");
+    return (int.tryParse(match) ?? 0) - 543;
+  }
+
+  if (RegExp(r'BCE?', caseSensitive: true).hasMatch(match)) {
+    // Before Christ, Before Common Era
+    match = match.replaceFirst(RegExp(r'BCE?', caseSensitive: true), "");
+    return -(int.tryParse(match) ?? 0);
+  }
+
+  if (RegExp(r'(AD|CE)', caseSensitive: true).hasMatch(match)) {
+    // Anno Domini, Common Era
+    match = match.replaceFirst(RegExp(r'(AD|CE)', caseSensitive: true), "");
+    return int.tryParse(match) ?? 0;
+  }
+
+  final rawYearNumber = int.tryParse(match)!;
+  return findMostLikelyADYear(rawYearNumber);
+}
+
+//-----------------------------
+
+final SINGLE_TIME_UNIT_PATTERN =
+    "($NUMBER_PATTERN)\\s{0,3}(${matchAnyPattern(TIME_UNIT_DICTIONARY)})";
+final SINGLE_TIME_UNIT_REGEX =
+    RegExp(SINGLE_TIME_UNIT_PATTERN, caseSensitive: false);
+
+final SINGLE_TIME_UNIT_NO_ABBR_PATTERN =
+    "($NUMBER_PATTERN)\\s{0,3}(${matchAnyPattern(TIME_UNIT_DICTIONARY_NO_ABBR)})";
+
+final TIME_UNITS_PATTERN = repeatedTimeunitPattern(
+    "(?:(?:about|around)\\s{0,3})?", SINGLE_TIME_UNIT_PATTERN);
+final TIME_UNITS_NO_ABBR_PATTERN = repeatedTimeunitPattern(
+    "(?:(?:about|around)\\s{0,3})?", SINGLE_TIME_UNIT_NO_ABBR_PATTERN);
+
+TimeUnits parseTimeUnits(String timeunitText) {
+  final Map<String, num> fragments = {};
+  var remainingText = timeunitText;
+  var match = SINGLE_TIME_UNIT_REGEX.firstMatch(remainingText);
+  while (match != null) {
+    collectDateTimeFragment(fragments, match);
+    remainingText = remainingText.substring(match[0]!.length).trim();
+    match = SINGLE_TIME_UNIT_REGEX.firstMatch(remainingText);
+  }
+  return fragments;
+}
+
+void collectDateTimeFragment(Map<String, num> fragments, RegExpMatch match) {
+  final num = parseNumberPattern(match[1]!);
+  final unit = TIME_UNIT_DICTIONARY[match[2]!.toLowerCase()];
+  fragments[unit!] = num!;
+}
+
+
+en.dart
+/// Chrono components for English support (*parsers*, *refiners*, and *configuration*)
+///
+/// @module
+
+import '../../../chrono_dart.dart' show ChronoInstance;
+import '../../types.dart' show ParsedResult, ParsingOption;
+
+import './configuration.dart';
+
+final enConfig = ENDefaultConfiguration();
+
+/// Chrono object configured for parsing *casual* English
+final casual = ChronoInstance(enConfig.createCasualConfiguration(false));
+
+/// ChronoInstance object configured for parsing *strict* English
+final strict = ChronoInstance(enConfig.createConfiguration(true, false));
+
+/// ChronoInstance object configured for parsing *UK-style* English
+final GB = ChronoInstance(enConfig.createConfiguration(false, true));
+
+/// A shortcut for en.casual.parse()
+List<ParsedResult> parse(String text, [DateTime? ref, ParsingOption? option]) {
+  return casual.parse(text, ref, option);
+}
+
+/// A shortcut for en.casual.parseDate()
+DateTime? parseDate(String text, DateTime ref, ParsingOption option) {
+  return casual.parseDate(text, ref, option);
+}
+
+
+ENCasualDateParser.dart
+import 'package:day/day.dart' as dayjs;
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch, Component;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+import '../../../utils/day.dart' show assignSimilarDate;
+import '../../../common/casual_references.dart' as references;
+
+final _pattern = RegExp(
+    r'(now|today|tonight|tomorrow|tmr|tmrw|yesterday|last\s*night)(?=\W|$)',
+    caseSensitive: false);
+
+class ENCasualDateParser extends AbstractParserWithWordBoundaryChecking {
+  @override
+  RegExp innerPattern(ParsingContext context) {
+    return _pattern;
+  }
+
+  /// @returns ParsingComponents | ParsingResult
+  @override
+  innerExtract(ParsingContext context, RegExpChronoMatch match) {
+    var targetDate = dayjs.Day.fromDateTime(context.reference.instant);
+    final lowerText = match[0]!.toLowerCase();
+    var component = context.createParsingComponents();
+
+    switch (lowerText) {
+      case "now":
+        component = references.now(context.reference);
+        break;
+
+      case "today":
+        component = references.today(context.reference);
+        break;
+
+      case "yesterday":
+        component = references.yesterday(context.reference);
+        break;
+
+      case "tomorrow":
+      case "tmr":
+      case "tmrw":
+        component = references.tomorrow(context.reference);
+        break;
+
+      case "tonight":
+        component = references.tonight(context.reference);
+        break;
+
+      default:
+        if (RegExp(r'last\s*night').hasMatch(lowerText)) {
+          if (targetDate.hour() > 6) {
+            targetDate = targetDate.add(-1, 'd')!;
+          }
+
+          assignSimilarDate(component, targetDate);
+          component.imply(Component.hour, 0);
+        }
+        break;
+    }
+    component.addTag("parser/ENCasualDateParser");
+    return component;
+  }
+}
+
+
+ENCasualTimeParser.dart
+// ignore_for_file: library_prefixes
+import '../../../results.dart' show ParsingComponents;
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+import '../../../common/casual_references.dart' as casualReferences;
+
+final _pattern = RegExp(
+    r'(?:this)?\s{0,3}(morning|afternoon|evening|night|midnight|midday|noon)(?=\W|$)',
+    caseSensitive: false);
+
+class ENCasualTimeParser extends AbstractParserWithWordBoundaryChecking {
+  @override
+  innerPattern(context) {
+    return _pattern;
+  }
+
+  @override
+  innerExtract(ParsingContext context, RegExpChronoMatch match) {
+    ParsingComponents? component;
+    switch (match[1]!.toLowerCase()) {
+      case "afternoon":
+        component = casualReferences.afternoon(context.reference);
+        break;
+      case "evening":
+      case "night":
+        component = casualReferences.evening(context.reference);
+        break;
+      case "midnight":
+        component = casualReferences.midnight(context.reference);
+        break;
+      case "morning":
+        component = casualReferences.morning(context.reference);
+        break;
+      case "noon":
+      case "midday":
+        component = casualReferences.noon(context.reference);
+        break;
+    }
+    if (component != null) {
+      component.addTag("parser/ENCasualTimeParser");
+    }
+    return component;
+  }
+}
+
+
+ENCasualYearMonthDayParser.dart
+// ignore_for_file: prefer_interpolation_to_compose_strings, constant_identifier_names
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch, Component;
+import '../constants.dart' show MONTH_DICTIONARY;
+import '../../../utils/pattern.dart' show matchAnyPattern;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+
+/*
+    Date format with slash "/" between numbers like ENSlashDateFormatParser,
+    but this parser expect year before month and date.
+    - YYYY/MM/DD
+    - YYYY-MM-DD
+    - YYYY.MM.DD
+*/
+final _pattern = RegExp(
+    // ignore: prefer_adjacent_string_concatenation
+    "([0-9]{4})[\\.\\/\\s]" +
+        "(?:(${matchAnyPattern(MONTH_DICTIONARY)})|([0-9]{1,2}))[\\.\\/\\s]" +
+        "([0-9]{1,2})" +
+        "(?=\\W|\$)",
+    caseSensitive: false);
+
+const _YEAR_NUMBER_GROUP = 1;
+const _MONTH_NAME_GROUP = 2;
+const _MONTH_NUMBER_GROUP = 3;
+const _DATE_NUMBER_GROUP = 4;
+
+class ENCasualYearMonthDayParser
+    extends AbstractParserWithWordBoundaryChecking {
+  @override
+  RegExp innerPattern(context) {
+    return _pattern;
+  }
+
+  @override
+  Map<Component, int>? innerExtract(
+      ParsingContext context, RegExpChronoMatch match) {
+    final month = match[_MONTH_NUMBER_GROUP] != null
+        ? int.parse(match[_MONTH_NUMBER_GROUP]!)
+        : MONTH_DICTIONARY[match[_MONTH_NAME_GROUP]!.toLowerCase()]!;
+
+    if (month < 1 || month > 12) {
+      return null;
+    }
+
+    final year = int.parse(match[_YEAR_NUMBER_GROUP]!);
+    final day = int.parse(match[_DATE_NUMBER_GROUP]!);
+
+    return {
+      Component.day: day,
+      Component.month: month,
+      Component.year: year,
+    };
+  }
+}
+
+
+ENMonthNameLittleEndianParser.dart
+// ignore_for_file: prefer_interpolation_to_compose_strings, constant_identifier_names
+import '../../../results.dart' show ParsingResult;
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch, Component;
+import '../../../calculation/years.dart' show findYearClosestToRef;
+import '../constants.dart' show MONTH_DICTIONARY, YEAR_PATTERN, parseYear, ORDINAL_NUMBER_PATTERN, parseOrdinalNumberPattern;
+import '../../../utils/pattern.dart' show matchAnyPattern;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+
+// prettier-ignore
+final _pattern = RegExp(
+    // ignore: prefer_adjacent_string_concatenation
+    "(?:on\\s{0,3})?" +
+        "($ORDINAL_NUMBER_PATTERN)" +
+        "(?:" +
+            "\\s{0,3}(?:to|\\-|\\–|until|through|till)?\\s{0,3}" +
+            "($ORDINAL_NUMBER_PATTERN)" +
+        ")?" +
+        "(?:-|/|\\s{0,3}(?:of)?\\s{0,3})" +
+        "(${matchAnyPattern(MONTH_DICTIONARY)})" +
+        "(?:" +
+            "(?:-|/|,?\\s{0,3})" +
+            "($YEAR_PATTERN(?![^\\s]\\d))" +
+        ")?" +
+        "(?=\\W|\$)",
+    caseSensitive: false
+);
+
+const _DATE_GROUP = 1;
+const _DATE_TO_GROUP = 2;
+const _MONTH_NAME_GROUP = 3;
+const _YEAR_GROUP = 4;
+
+class ENMonthNameLittleEndianParser extends AbstractParserWithWordBoundaryChecking {
+    @override
+    RegExp innerPattern(context) {
+        return _pattern;
+    }
+
+    @override
+    ParsingResult? innerExtract(ParsingContext context, RegExpChronoMatch match) {
+        final result = context.createParsingResult(match.index, match[0]);
+
+        final month = MONTH_DICTIONARY[match[_MONTH_NAME_GROUP]!.toLowerCase()]!;
+        final day = parseOrdinalNumberPattern(match[_DATE_GROUP]!)!;
+        if (day > 31) {
+            // e.g. "[96 Aug]" => "9[6 Aug]", we need to shift away from the next number
+            match.index = match.index + match[_DATE_GROUP]!.length;
+            return null;
+        }
+
+        result.start.assign(Component.month, month);
+        result.start.assign(Component.day, day);
+
+        if (match[_YEAR_GROUP] != null) {
+            final yearNumber = parseYear(match[_YEAR_GROUP]!)!;
+            result.start.assign(Component.year, yearNumber);
+        } else {
+            final year = findYearClosestToRef(context.reference.instant, day, month);
+            result.start.imply(Component.year, year);
+        }
+
+        if (match[_DATE_TO_GROUP] != null) {
+            final endDate = parseOrdinalNumberPattern(match[_DATE_TO_GROUP]!)!;
+
+            result.end = result.start.clone();
+            result.end!.assign(Component.day, endDate);
+        }
+
+        return result;
+    }
+}
+
+
+ENMonthNameMiddleEndianParser.dart
+// ignore_for_file: prefer_interpolation_to_compose_strings, constant_identifier_names, slash_for_doc_comments
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch, Component;
+import '../../../calculation/years.dart' show findYearClosestToRef;
+import '../constants.dart'
+    show
+        MONTH_DICTIONARY,
+        YEAR_PATTERN,
+        parseYear,
+        ORDINAL_NUMBER_PATTERN,
+        parseOrdinalNumberPattern;
+import '../../../utils/pattern.dart' show matchAnyPattern;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+
+final _pattern = RegExp(
+    "(${matchAnyPattern(MONTH_DICTIONARY)})" +
+        "(?:-|/|\\s*,?\\s*)" +
+        "($ORDINAL_NUMBER_PATTERN)(?!\\s*(?:am|pm))\\s*" +
+        "(?:" +
+        "(?:to|\\-)\\s*" +
+        "($ORDINAL_NUMBER_PATTERN)\\s*" +
+        ")?" +
+        "(?:" +
+        "(?:-|/|\\s*,?\\s*)" +
+        "($YEAR_PATTERN)" +
+        ")?" +
+        "(?=\\W|\$)(?!\\:\\d)",
+    caseSensitive: false);
+
+const _MONTH_NAME_GROUP = 1;
+const _DATE_GROUP = 2;
+const _DATE_TO_GROUP = 3;
+const _YEAR_GROUP = 4;
+
+/**
+ * The parser for parsing US's date format that begin with month's name.
+ *  - January 13
+ *  - January 13, 2012
+ *  - January 13 - 15, 2012
+ * Note: Watch out for:
+ *  - January 12:00
+ *  - January 12.44
+ *  - January 1222344
+ */
+class ENMonthNameMiddleEndianParser
+    extends AbstractParserWithWordBoundaryChecking {
+  @override
+  RegExp innerPattern(context) {
+    return _pattern;
+  }
+
+  @override
+  innerExtract(ParsingContext context, RegExpChronoMatch match) {
+    final mStr = match[_MONTH_NAME_GROUP]!.toLowerCase();
+    final month = MONTH_DICTIONARY[mStr]!;
+    final day = parseOrdinalNumberPattern(match[_DATE_GROUP]!)!;
+    if (day > 31) {
+      return null;
+    }
+
+    final components = context.createParsingComponents({
+      Component.day: day,
+      Component.month: month,
+    });
+
+    if (match[_YEAR_GROUP] != null) {
+      final year = parseYear(match[_YEAR_GROUP]!)!;
+      components.assign(Component.year, year);
+    } else {
+      final year = findYearClosestToRef(context.reference.instant, day, month);
+      components.imply(Component.year, year);
+    }
+
+    if (match[_DATE_TO_GROUP] == null) {
+      return components;
+    }
+
+    // Text can be 'range' value. Such as 'January 12 - 13, 2012'
+    final endDate = parseOrdinalNumberPattern(match[_DATE_TO_GROUP]!)!;
+    final result = context.createParsingResult(match.index, match[0]);
+    result.start = components;
+    result.end = components.clone();
+    result.end!.assign(Component.day, endDate);
+
+    return result;
+  }
+}
+
+
+ENMonthNameParser.dart
+// ignore_for_file: prefer_interpolation_to_compose_strings, constant_identifier_names, slash_for_doc_comments
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch, Component;
+import '../../../calculation/years.dart' show findYearClosestToRef;
+import '../constants.dart'
+    show MONTH_DICTIONARY, YEAR_PATTERN, parseYear, FULL_MONTH_NAME_DICTIONARY;
+import '../../../utils/pattern.dart' show matchAnyPattern;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+
+final _pattern = RegExp(
+    // ignore: prefer_adjacent_string_concatenation
+    "((?:in)\\s*)?" +
+        "(${matchAnyPattern(MONTH_DICTIONARY)})" +
+        "\\s*" +
+        "(?:" +
+        "[,-]?\\s*($YEAR_PATTERN)?" +
+        ")?" +
+        "(?=[^\\s\\w]|\\s+[^0-9]|\\s+\$|\$)",
+    caseSensitive: false);
+
+const _PREFIX_GROUP = 1;
+const _MONTH_NAME_GROUP = 2;
+const _YEAR_GROUP = 3;
+
+/**
+ * The parser for parsing month name and year.
+ * - January, 2012
+ * - January 2012
+ * - January
+ * (in) Jan
+ */
+class ENMonthNameParser extends AbstractParserWithWordBoundaryChecking {
+  @override
+  RegExp innerPattern(context) {
+    return _pattern;
+  }
+
+  @override
+  innerExtract(ParsingContext context, RegExpChronoMatch match) {
+    final monthName = match[_MONTH_NAME_GROUP]!.toLowerCase();
+
+    // skip some unlikely words "jan", "mar", ..
+    if (match[0]!.length <= 3 &&
+        FULL_MONTH_NAME_DICTIONARY[monthName] == null) {
+      return null;
+    }
+
+    final result = context.createParsingResult(
+        match.index + (match[_PREFIX_GROUP] ?? "").length,
+        match.index + match[0]!.length);
+    result.start.imply(Component.day, 1);
+
+    final month = MONTH_DICTIONARY[monthName]!;
+    result.start.assign(Component.month, month);
+
+    if (match[_YEAR_GROUP] != null) {
+      final year = parseYear(match[_YEAR_GROUP]!)!;
+      result.start.assign(Component.year, year);
+    } else {
+      final year = findYearClosestToRef(context.reference.instant, 1, month);
+      result.start.imply(Component.year, year);
+    }
+
+    return result;
+  }
+}
+
+
+ENRelativeDateFormatParser.dart
+// ignore_for_file: constant_identifier_names
+import 'package:day/day.dart' as dayjs;
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch, Component;
+import '../constants.dart' show TIME_UNIT_DICTIONARY;
+import '../../../results.dart' show ParsingComponents;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+import '../../../utils/pattern.dart' show matchAnyPattern;
+
+final _pattern = RegExp(
+  "(this|last|past|next|after\\s*this)\\s*(${matchAnyPattern(TIME_UNIT_DICTIONARY)})(?=\\s*)(?=\\W|\$)",
+  caseSensitive: false,
+);
+
+const _MODIFIER_WORD_GROUP = 1;
+const _RELATIVE_WORD_GROUP = 2;
+
+class ENRelativeDateFormatParser
+    extends AbstractParserWithWordBoundaryChecking {
+  @override
+  RegExp innerPattern(context) {
+    return _pattern;
+  }
+
+  @override
+  ParsingComponents innerExtract(
+      ParsingContext context, RegExpChronoMatch match) {
+    final modifier = match[_MODIFIER_WORD_GROUP]!.toLowerCase();
+    final unitWord = match[_RELATIVE_WORD_GROUP]!.toLowerCase();
+    final timeunit = TIME_UNIT_DICTIONARY[unitWord]!;
+
+    if (modifier == "next" || modifier.startsWith("after")) {
+      final Map<String, num> timeUnits = {};
+      timeUnits[timeunit] = 1;
+      return ParsingComponents.createRelativeFromReference(
+          context.reference, timeUnits);
+    }
+
+    if (modifier == "last" || modifier == "past") {
+      final Map<String, num> timeUnits = {};
+      timeUnits[timeunit] = -1;
+      return ParsingComponents.createRelativeFromReference(
+          context.reference, timeUnits);
+    }
+
+    final components = context.createParsingComponents();
+    var date = dayjs.Day.fromDateTime(context.reference.instant);
+
+    // This week
+    if (RegExp(r'week', caseSensitive: false).hasMatch(unitWord)) {
+      date = date.add(-date.get("d")!, "d")!;
+      components.imply(Component.day, date.date());
+      components.imply(Component.month, date.month());
+      components.imply(Component.year, date.year());
+    }
+
+    // This month
+    else if (RegExp(r'month', caseSensitive: false).hasMatch(unitWord)) {
+      date = date.add(-date.date() + 1, "d")!;
+      components.imply(Component.day, date.date());
+      components.assign(Component.year, date.year());
+      components.assign(Component.month, date.month());
+    }
+
+    // This year
+    else if (RegExp(r'year', caseSensitive: false).hasMatch(unitWord)) {
+      date = date.add(-date.date() + 1, "d")!;
+      date = date.add(-date.month(), "month")!;
+
+      components.imply(Component.day, date.date());
+      components.imply(Component.month, date.month());
+      components.assign(Component.year, date.year());
+    }
+
+    return components;
+  }
+}
+
+
+ENSlashMonthFormatParser.dart
+import '../../../chrono.dart' show ParsingContext;
+import '../../../results.dart' show ParsingComponents;
+import '../../../types.dart' show Component, RegExpChronoMatch;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+
+final _PATTERN = RegExp(r'([0-9]|0[1-9]|1[012])/([0-9]{4})');
+
+const _MONTH_GROUP = 1;
+const _YEAR_GROUP = 2;
+
+/// Month/Year date format with slash "/" (also "-" and ".") between numbers
+/// - 11/05
+/// - 06/2005
+class ENSlashMonthFormatParser extends AbstractParserWithWordBoundaryChecking {
+  @override
+  RegExp innerPattern(context) {
+    return _PATTERN;
+  }
+
+  @override
+  ParsingComponents innerExtract(ParsingContext context, RegExpChronoMatch match) {
+    final year = int.tryParse(match[_YEAR_GROUP]!)!;
+    final month = int.tryParse(match[_MONTH_GROUP]!)!;
+
+    return context
+        .createParsingComponents()
+        .imply(Component.day, 1)
+        .assign(Component.month, month)
+        .assign(Component.year, year);
+  }
+}
+
+
+ENTimeExpressionParser.dart
+import '../../../chrono.dart' show ParsingContext;
+import '../../../results.dart' show ParsingComponents;
+import '../../../types.dart' show Meridiem, Component;
+import '../../../common/parsers/AbstractTimeExpressionParser.dart'
+    show AbstractTimeExpressionParser;
+
+class ENTimeExpressionParser extends AbstractTimeExpressionParser {
+  ENTimeExpressionParser(strictMode) : super(strictMode);
+
+  @override
+  String followingPhase() {
+    return "\\s*(?:\\-|\\–|\\~|\\〜|to|until|through|till|\\?)\\s*";
+  }
+
+  @override
+  String primaryPrefix() {
+    return "(?:(?:at|from)\\s*)??";
+  }
+
+  @override
+  String primarySuffix() {
+    return "(?:\\s*(?:o\\W*clock|at\\s*night|in\\s*the\\s*(?:morning|afternoon)))?(?!/)(?=\\W|\$)";
+  }
+
+  @override
+  ParsingComponents? extractPrimaryTimeComponents(
+      ParsingContext context, RegExpMatch match,
+      [bool strict = false]) {
+    final components =
+        super.extractPrimaryTimeComponents(context, match, strict);
+    if (components == null) {
+      return components;
+    }
+
+    if (match[0]!.endsWith("night")) {
+      final hour = components.get(Component.hour)!;
+      if (hour >= 6 && hour < 12) {
+        components.assign(Component.hour, components.get(Component.hour)! + 12);
+        components.assign(Component.meridiem, Meridiem.PM.id);
+      } else if (hour < 6) {
+        components.assign(Component.meridiem, Meridiem.AM.id);
+      }
+    }
+
+    if (match[0]!.endsWith("afternoon")) {
+      components.assign(Component.meridiem, Meridiem.PM.id);
+      final hour = components.get(Component.hour)!;
+      if (hour >= 0 && hour <= 6) {
+        components.assign(Component.hour, components.get(Component.hour)! + 12);
+      }
+    }
+
+    if (match[0]!.endsWith("morning")) {
+      components.assign(Component.meridiem, Meridiem.AM.id);
+      final hour = components.get(Component.hour)!;
+      if (hour < 12) {
+        components.assign(Component.hour, components.get(Component.hour)!);
+      }
+    }
+
+    return components.addTag("parser/ENTimeExpressionParser");
+  }
+}
+
+
+ENTimeUnitAgoFormatParser.dart
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch;
+import '../constants.dart'
+    show parseTimeUnits, TIME_UNITS_NO_ABBR_PATTERN, TIME_UNITS_PATTERN;
+import '../../../results.dart' show ParsingComponents;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+import "../../../utils/timeunits.dart" show reverseTimeUnits;
+
+final _pattern = RegExp(
+    "($TIME_UNITS_PATTERN)\\s{0,5}(?:ago|before|earlier)(?=\\W|\$)",
+    caseSensitive: false);
+final _strictPattern = RegExp(
+    "($TIME_UNITS_NO_ABBR_PATTERN)\\s{0,5}(?:ago|before|earlier)(?=\\W|\$)",
+    caseSensitive: false);
+
+class ENTimeUnitAgoFormatParser extends AbstractParserWithWordBoundaryChecking {
+  final bool _strictMode;
+
+  ENTimeUnitAgoFormatParser(bool strictMode)
+      : _strictMode = strictMode,
+        super();
+
+  @override
+  RegExp innerPattern(context) {
+    return _strictMode ? _strictPattern : _pattern;
+  }
+
+  @override
+  innerExtract(ParsingContext context, RegExpChronoMatch match) {
+    final timeUnits = parseTimeUnits(match[1]!);
+    final outputTimeUnits = reverseTimeUnits(timeUnits);
+
+    return ParsingComponents.createRelativeFromReference(
+        context.reference, outputTimeUnits);
+  }
+}
+
+
+ENTimeUnitCasualRelativeFormatParser.dart
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch;
+import '../constants.dart'
+    show TIME_UNITS_PATTERN, parseTimeUnits, TIME_UNITS_NO_ABBR_PATTERN;
+import '../../../results.dart' show ParsingComponents;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+import "../../../utils/timeunits.dart" show reverseTimeUnits;
+
+final _pattern = RegExp(
+    "(this|last|past|next|after|\\+|-)\\s*($TIME_UNITS_PATTERN)(?=\\W|\$)",
+    caseSensitive: false);
+final _patternNoAbbr = RegExp(
+  "(this|last|past|next|after|\\+|-)\\s*($TIME_UNITS_NO_ABBR_PATTERN)(?=\\W|\$)",
+  caseSensitive: false,
+);
+
+class ENTimeUnitCasualRelativeFormatParser
+    extends AbstractParserWithWordBoundaryChecking {
+  final bool allowAbbreviations;
+
+  ENTimeUnitCasualRelativeFormatParser([this.allowAbbreviations = true])
+      : super();
+
+  @override
+  RegExp innerPattern(context) {
+    return allowAbbreviations ? _pattern : _patternNoAbbr;
+  }
+
+  @override
+  ParsingComponents innerExtract(
+      ParsingContext context, RegExpChronoMatch match) {
+    final prefix = match[1]!.toLowerCase();
+    var timeUnits = parseTimeUnits(match[2]!);
+    switch (prefix) {
+      case "last":
+      case "past":
+      case "-":
+        timeUnits = reverseTimeUnits(timeUnits);
+        break;
+    }
+
+    return ParsingComponents.createRelativeFromReference(
+        context.reference, timeUnits);
+  }
+}
+
+
+ENTimeUnitLaterFormatParser.dart
+// ignore_for_file: constant_identifier_names
+import '../../../chrono.dart' show ParsingContext;
+import '../../../types.dart' show RegExpChronoMatch;
+import '../constants.dart'
+    show parseTimeUnits, TIME_UNITS_NO_ABBR_PATTERN, TIME_UNITS_PATTERN;
+import '../../../results.dart' show ParsingComponents;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+
+final _pattern = RegExp(
+  "($TIME_UNITS_PATTERN)\\s{0,5}(?:later|after|from now|henceforth|forward|out)(?=(?:\\W|\$))",
+  caseSensitive: false,
+);
+
+final _strictPattern = RegExp(
+  "($TIME_UNITS_NO_ABBR_PATTERN)(later|from now)(?=(?:\\W|\$))",
+  caseSensitive: false,
+);
+const GROUP_NUM_TIMEUNITS = 1;
+
+class ENTimeUnitLaterFormatParser
+    extends AbstractParserWithWordBoundaryChecking {
+  final bool _strictMode;
+
+  ENTimeUnitLaterFormatParser(bool strictMode)
+      : _strictMode = strictMode,
+        super();
+
+  @override
+  RegExp innerPattern(context) {
+    return _strictMode ? _strictPattern : _pattern;
+  }
+
+  @override
+  innerExtract(ParsingContext context, RegExpChronoMatch match) {
+    final fragments = parseTimeUnits(match[GROUP_NUM_TIMEUNITS]!);
+    return ParsingComponents.createRelativeFromReference(
+        context.reference, fragments);
+  }
+}
+
+
+ENTimeUnitWithinFormatParser.dart
+// ignore_for_file: prefer_adjacent_string_concatenation, non_constant_identifier_names
+import '../constants.dart'
+    show TIME_UNITS_PATTERN, parseTimeUnits, TIME_UNITS_NO_ABBR_PATTERN;
+import '../../../chrono.dart' show ParsingContext;
+import '../../../results.dart' show ParsingComponents;
+import '../../../types.dart' show RegExpChronoMatch;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+
+final PATTERN_WITH_OPTIONAL_PREFIX = RegExp(
+    "(?:(?:within|in|for)\\s*)?" +
+        "(?:(?:about|around|roughly|approximately|just)\\s*(?:~\\s*)?)?($TIME_UNITS_PATTERN)(?=\\W|\$)",
+    caseSensitive: false);
+
+final PATTERN_WITH_PREFIX = RegExp(
+    "(?:within|in|for)\\s*" +
+        "(?:(?:about|around|roughly|approximately|just)\\s*(?:~\\s*)?)?($TIME_UNITS_PATTERN)(?=\\W|\$)",
+    caseSensitive: false);
+
+final PATTERN_WITH_PREFIX_STRICT = RegExp(
+    "(?:within|in|for)\\s*" +
+        "(?:(?:about|around|roughly|approximately|just)\\s*(?:~\\s*)?)?($TIME_UNITS_NO_ABBR_PATTERN)(?=\\W|\$)",
+    caseSensitive: false);
+
+class ENTimeUnitWithinFormatParser
+    extends AbstractParserWithWordBoundaryChecking {
+  final bool _strictMode;
+
+  ENTimeUnitWithinFormatParser(bool strictMode)
+      : _strictMode = strictMode,
+        super();
+
+  @override
+  RegExp innerPattern(ParsingContext context) {
+    if (_strictMode) {
+      return PATTERN_WITH_PREFIX_STRICT;
+    }
+    return context.option.forwardDate != null
+        ? PATTERN_WITH_OPTIONAL_PREFIX
+        : PATTERN_WITH_PREFIX;
+  }
+
+  @override
+  ParsingComponents innerExtract(
+      ParsingContext context, RegExpChronoMatch match) {
+    final timeUnits = parseTimeUnits(match[1]!);
+    return ParsingComponents.createRelativeFromReference(
+        context.reference, timeUnits);
+  }
+}
+
+
+ENWeekdayParser.dart
+// ignore_for_file: constant_identifier_names
+import '../../../types.dart';
+import '../../../chrono.dart' show ParsingContext;
+import '../../../results.dart' show ParsingComponents;
+import '../constants.dart' show WEEKDAY_DICTIONARY;
+import '../../../utils/pattern.dart' show matchAnyPattern;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart'
+    show AbstractParserWithWordBoundaryChecking;
+import '../../../common/calculation/weekdays.dart'
+    show createParsingComponentsAtWeekday;
+
+final _pattern = RegExp(
+  // ignore: prefer_interpolation_to_compose_strings, prefer_adjacent_string_concatenation
+  "(?:(?:\\,|\\(|\\（)\\s*)?" +
+      "(?:on\\s*?)?" +
+      "(?:(this|last|past|next)\\s*)?" +
+      "(${matchAnyPattern(WEEKDAY_DICTIONARY)})" +
+      "(?:\\s*(?:\\,|\\)|\\）))?" +
+      "(?:\\s*(this|last|past|next)\\s*week)?" +
+      "(?=\\W|\$)",
+  caseSensitive: false,
+);
+
+const _PREFIX_GROUP = 1;
+const _WEEKDAY_GROUP = 2;
+const _POSTFIX_GROUP = 3;
+
+class ENWeekdayParser extends AbstractParserWithWordBoundaryChecking {
+  @override
+  RegExp innerPattern(context) {
+    return _pattern;
+  }
+
+  @override
+  ParsingComponents innerExtract(
+      ParsingContext context, RegExpChronoMatch match) {
+    final dayOfWeek = match[_WEEKDAY_GROUP]!.toLowerCase();
+
+    /// TODO: remove assumed weekday if null
+    final weekday = Weekday.weekById(WEEKDAY_DICTIONARY[dayOfWeek] ?? 0);
+    final prefix = match[_PREFIX_GROUP];
+    final postfix = match[_POSTFIX_GROUP];
+    var modifierWord = prefix ?? postfix;
+    modifierWord = modifierWord ?? "";
+    modifierWord = modifierWord.toLowerCase();
+
+    String? modifier;
+    if (modifierWord == "last" || modifierWord == "past") {
+      modifier = "last";
+    } else if (modifierWord == "next") {
+      modifier = "next";
+    } else if (modifierWord == "this") {
+      modifier = "this";
+    }
+
+    return createParsingComponentsAtWeekday(
+        context.reference, weekday, modifier);
+  }
+}
+
+
+ENMergeDateRangeRefiner.dart
+import '../../../common/refiners/AbstractMergeDateRangeRefiner.dart';
+
+/// Merging before and after results (see. AbstractMergeDateRangeRefiner)
+/// This implementation should provide English connecting phases
+/// - 2020-02-13 [to] 2020-02-13
+/// - Wednesday [-] Friday
+class ENMergeDateRangeRefiner extends AbstractMergeDateRangeRefiner {
+  @override
+  RegExp patternBetween() {
+    return RegExp(r'^\s*(to|-|–|until|through|till)\s*$', caseSensitive: false);
+  }
+}
+
+
+ENMergeDateTimeRefiner.dart
+import '../../../common/refiners/AbstractMergeDateTimeRefiner.dart';
+
+/// Merging date-only result and time-only result (see. AbstractMergeDateTimeRefiner).
+/// This implementation should provide English connecting phases
+/// - 2020-02-13 [at] 6pm
+/// - Tomorrow [after] 7am
+class ENMergeDateTimeRefiner extends AbstractMergeDateTimeRefiner {
+  @override
+  RegExp patternBetween() {
+    return RegExp(r'^\s*(T|at|after|before|on|of|,|-)?\s*$', caseSensitive: false);
+  }
+}
+
+
+ENMergeRelativeDateRefiner.dart
+import "../../../types.dart" show Component;
+import '../../../common/abstract_refiners.dart' show MergingRefiner;
+import "../../../results.dart"
+    show ParsingComponents, ParsingResult, ReferenceWithTimezone;
+import "../constants.dart" show parseTimeUnits;
+import "../../../utils/timeunits.dart" show reverseTimeUnits;
+
+bool hasImpliedEarlierReferenceDate(ParsingResult result) {
+  return RegExp(r'\s+(before|from)$').hasMatch(result.text);
+}
+
+bool hasImpliedLaterReferenceDate(ParsingResult result) {
+  return RegExp(r'\s+(after|since)$', caseSensitive: false)
+      .hasMatch(result.text);
+}
+
+/// Merges an absolute date with a relative date.
+/// - 2 weeks before 2020-02-13
+/// - 2 days after next Friday
+class ENMergeRelativeDateRefiner extends MergingRefiner {
+  RegExp patternBetween() {
+    return RegExp(r'^\s*$', caseSensitive: false);
+  }
+
+  @override
+  bool shouldMergeResults(String textBetween, ParsingResult currentResult,
+      ParsingResult nextResult, context) {
+    // Dates need to be next to each other to get merged
+    if (!patternBetween().hasMatch(textBetween)) {
+      return false;
+    }
+
+    // Check if any relative tokens were swallowed by the first date.
+    // E.g. [<relative_date1> from] [<date2>]
+    if (!hasImpliedEarlierReferenceDate(currentResult) &&
+        !hasImpliedLaterReferenceDate(currentResult)) {
+      return false;
+    }
+
+    // make sure that <date2> implies an absolute date
+    return nextResult.start.get(Component.day) != null &&
+        nextResult.start.get(Component.month) != null &&
+        nextResult.start.get(Component.year) != null;
+  }
+
+  @override
+  ParsingResult mergeResults(String textBetween, ParsingResult currentResult,
+      ParsingResult nextResult, context) {
+    var timeUnits = parseTimeUnits(currentResult.text);
+    if (hasImpliedEarlierReferenceDate(currentResult)) {
+      timeUnits = reverseTimeUnits(timeUnits);
+    }
+
+    final components = ParsingComponents.createRelativeFromReference(
+        ReferenceWithTimezone(nextResult.start.date()), timeUnits);
+
+    return ParsingResult(nextResult.reference, currentResult.index,
+        "${currentResult.text}$textBetween${nextResult.text}", components);
+  }
+}
+
+
