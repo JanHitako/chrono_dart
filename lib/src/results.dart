@@ -133,8 +133,7 @@ class ParsingComponents implements ParsedComponents {
   bool isOnlyTime() {
     return !isCertain(Component.weekday) &&
         !isCertain(Component.day) &&
-        !isCertain(Component.month) &&
-        !isCertain(Component.year);
+        !isCertain(Component.month);
   }
 
   bool isOnlyWeekdayComponent() {
