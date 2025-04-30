@@ -1,6 +1,6 @@
-import '../abstract_refiners.dart' show MergingRefiner;
 import '../../results.dart' show ParsingResult;
 import '../../types.dart' show Component;
+import '../abstract_refiners.dart' show MergingRefiner;
 
 /// Merge weekday component into more completed data
 /// - [Sunday] [12/7/2014] => [Sunday 12/7/2014]
@@ -29,7 +29,9 @@ class MergeWeekdayComponentRefiner extends MergingRefiner {
     final weekdayThenNormalDate =
         currentResult.start.isOnlyWeekdayComponent() &&
             !currentResult.start.isCertain(Component.hour) &&
-            nextResult.start.isCertain(Component.day);
+            nextResult.start.isCertain(Component.day) &&
+            nextResult.start.dayjs().weekday() ==
+                currentResult.start.get(Component.weekday);
     return weekdayThenNormalDate && RegExp(r'^,?\s*$').hasMatch(textBetween);
   }
 }
