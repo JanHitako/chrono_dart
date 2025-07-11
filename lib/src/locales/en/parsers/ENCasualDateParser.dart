@@ -1,20 +1,16 @@
 import 'package:day/day.dart' as dayjs;
+
 import '../../../chrono.dart' show ParsingContext;
-import '../../../types.dart' show RegExpChronoMatch, Component;
-import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
-import '../../../utils/day.dart' show assignSimilarDate;
 import '../../../common/casual_references.dart' as references;
+import '../../../common/parsers/AbstractParserWithWordBoundary.dart';
+import '../../../types.dart' show RegExpChronoMatch, Component;
+import '../../../utils/day.dart' show assignSimilarDate;
 
 final _pattern = RegExp(
-    r'(now|today|tonight|tomorrow|tmr|tmrw|yesterday|last\s*night)(?=\W|$)',
+    r'(now|today|same\s*day|tonight|tomorrow|tmr|tmrw|yesterday|last\s*night)(?=\W|$)',
     caseSensitive: false);
 
 class ENCasualDateParser extends AbstractParserWithWordBoundaryChecking {
-  @override
-  RegExp innerPattern(ParsingContext context) {
-    return _pattern;
-  }
-
   /// @returns ParsingComponents | ParsingResult
   @override
   innerExtract(ParsingContext context, RegExpChronoMatch match) {
@@ -28,6 +24,8 @@ class ENCasualDateParser extends AbstractParserWithWordBoundaryChecking {
         break;
 
       case "today":
+      case "same day":
+      case "sameday":
         component = references.today(context.reference);
         break;
 
@@ -58,5 +56,10 @@ class ENCasualDateParser extends AbstractParserWithWordBoundaryChecking {
     }
     component.addTag("parser/ENCasualDateParser");
     return component;
+  }
+
+  @override
+  RegExp innerPattern(ParsingContext context) {
+    return _pattern;
   }
 }
